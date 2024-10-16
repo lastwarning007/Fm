@@ -1,15 +1,11 @@
-import logging
-from telegram import Update
-from telegram.ext import Updater, CommandHandler, CallbackContext
+import telebot
 import subprocess
 
-# Enable logging
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
-logger = logging.getLogger(__name__)
+API_TOKEN = '7856951971:AAHhnHq_LTdvjC-cBrIuonXeJSzOfLNC7so'
+bot = telebot.TeleBot(API_TOKEN)
 
-# Define your radio stations
 RADIO_STATION = {
-    "Air Bilaspur": "http://air.pc.cdn.bitgravity.com/air/live/pbaudio110/playlist.m3u8",
+    "Air Bilaspur": "https://nl4.mystreaming.net/uber/bollywoodlove/icecast.audio",
     "Air Raipur": "http://air.pc.cdn.bitgravity.com/air/live/pbaudio118/playlist.m3u8",
     "Capital FM": "http://media-ice.musicradio.com/CapitalMP3?.mp3&listening-from-radio-garden=1616312105154",
     "English": "https://hls-01-regions.emgsound.ru/11_msk/playlist.m3u8",
@@ -20,47 +16,23 @@ RADIO_STATION = {
     "Aaj Tak": "https://www.youtube.com/live/Nq2wYlWFucg?si=usY4UYiSBInKA0S1",
 }
 
-# Command to start the bot
-def start(update: Update, context: CallbackContext) -> None:
-    update.message.reply_text("Welcome to the Radio Stream Bot! Use /stations to see the available stations.")
+@bot.message_handler(commands=['start', 'help'])
+def send_welcome(message):
+    bot.reply_to(message, "Welcome to the FM Radio Bot! Use /play <station_name> to play a radio station.")
 
-# List available radio stations
-def stations(update: Update, context: CallbackContext) -> None:
-    stations_list = "n".join(RADIO_STATION.keys())
-    update.message.reply_text(f"Available stations:n{stations_list}")
-
-# Play a selected radio station
-def play(update: Update, context: CallbackContext) -> None:
-    if context.args:
-        station_name = " ".join(context.args)
+@bot.message_handler(commands=['play'])
+def play_radio(message):
+    try:
+        station_name = message.text.split(' ', 1)[1]
         if station_name in RADIO_STATION:
-            update.message.reply_text(f"Playing {station_name}...")
-            stream_url = RADIO_STATION[station_name]
-            # Start the FFmpeg process to stream audio
-            subprocess.Popen(['ffmpeg', '-i', stream_url, '-f', 'mp3', 'pipe:1'], stdout=subprocess.PIPE)
+            url = RADIO_STATION[station_name]
+            chat_id = message.chat.id
+            bot.send_message(chat_id, f"Playing {station_name}...")
+            subprocess.Popen(['ffmpeg', '-i', url, '-f', 's16le', '-ar', '48000', '-ac', '2', 'pipe:1'], stdout=subprocess.PIPE)
         else:
-            update.message.reply_text("Station not found. Use /stations to see available stations.")
-    else:
-        update.message.reply_text("Please specify a station name. Usage: /play <station_name>")
+            bot.send_message(message.chat.id, "Station not found. Please check the station name.")
+    except IndexError:
+        bot.send_message(message.chat.id, "Please provide a station name.")
 
-# Main function to run the bot
-def main() -> None:
-    # Replace 'YOUR_TELEGRAM_BOT_TOKEN' with your actual bot token
-    updater = Updater("7856951971:AAHhnHq_LTdvjC-cBrIuonXeJSzOfLNC7so")
+bot.polling()
 
-    # Get the dispatcher to register handlers
-    dispatcher = updater.dispatcher
-
-    # Register command handlers
-    dispatcher.add_handler(CommandHandler("start", start))
-    dispatcher.add_handler(CommandHandler("stations", stations))
-    dispatcher.add_handler(CommandHandler("play", play))
-
-    # Start the Bot
-    updater.start_polling()
-
-    # Run the bot until you press Ctrl-C
-    updater.idle()
-
-if __name__ == '__main__':
-    main()
